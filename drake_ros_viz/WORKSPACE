@@ -19,10 +19,9 @@ load("@bazel_ros2_rules//deps:defs.bzl", "add_bazel_ros2_rules_dependencies")
 
 add_bazel_ros2_rules_dependencies()
 
-load("@bazel_ros2_rules//ros2:defs.bzl", "ros2_archive")
+load("@bazel_ros2_rules//ros2:defs.bzl", "ros2_local_repository")
 
-# Use ROS 2
-ros2_archive(
+ros2_local_repository(
     name = "ros2",
     include_packages = [
         "geometry_msgs",
@@ -31,11 +30,41 @@ ros2_archive(
         "tf2_ros",
         "tf2_ros_py",
         "visualization_msgs",
+        "rosidl_default_generators",
+        "rosidl_default_runtime",
+        "rosidl_typesupport_cpp",
+        "rosidl_typesupport_fastrtps_cpp",
+        "rosidl_typesupport_fastrtps_c",
+        "rosidl_typesupport_introspection_cpp",
+        "rosidl_typesupport_introspection_c",
+        "rosidl_typesupport_c",
+        "rosidl_typesupport_interface",
+        "rosidl_generator_py",
+        "rosidl_generator_c",
+        "rosidl_generator_cpp",
+        "rosidl_parser",
+        "rosidl_runtime_py",
+        "rosidl_runtime_c",
     ],
-    sha256_url = "https://repo.ros2.org/ci_archives/drake-ros-underlay/ros2-humble-linux-focal-amd64-ci-CHECKSUM",  # noqa
-    strip_prefix = "ros2-linux",
-    url = "http://repo.ros2.org/ci_archives/drake-ros-underlay/ros2-humble-linux-focal-amd64-ci.tar.bz2",  # noqa
+    workspaces = [
+        "/opt/ros/humble",]  # noqa]
 )
+
+# # Use ROS 2
+# ros2_archive(
+#     name = "ros2",
+#     include_packages = [
+#         "geometry_msgs",
+#         "rclcpp",
+#         "rclpy",
+#         "tf2_ros",
+#         "tf2_ros_py",
+#         "visualization_msgs",
+#     ],
+#     sha256_url = "https://repo.ros2.org/ci_archives/drake-ros-underlay/ros2-humble-linux-focal-amd64-ci-CHECKSUM",  # noqa
+#     strip_prefix = "ros2-linux",
+#     url = "http://repo.ros2.org/ci_archives/drake-ros-underlay/ros2-humble-linux-focal-amd64-ci.tar.bz2",  # noqa
+# )
 
 # Depend on Drake
 DRAKE_TAG = "v1.10.0"

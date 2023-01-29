@@ -35,6 +35,9 @@ struct RvizVisualizerParams {
 
   /// Whether to perform tf broadcasting or not.
   bool publish_tf{true};
+
+  /// Whether to publish simulation rate or not.
+  bool publish_simulation_rate{true};
 };
 
 /// System for SceneGraph visualization in RViz.

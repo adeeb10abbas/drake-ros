@@ -24,7 +24,7 @@
 #include <drake_ros_tf2/scene_tf_broadcaster_system.h>
 #include <rclcpp/qos.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
-
+#include <std_msgs/msg/float64.hpp>
 #include "drake_ros_viz/scene_markers_system.h"
 
 namespace drake_ros_viz {
@@ -80,6 +80,18 @@ RvizVisualizer::RvizVisualizer(drake_ros_core::DrakeRos* ros,
     builder.ConnectInput(
         "graph_query",
         impl_->scene_tf_broadcaster->get_graph_query_input_port());
+  }
+  
+  // Add a publisher for simulation rate 
+  if (params.publish_simulation_rate) {
+    auto sim_rate_publisher = builder.AddSystem(
+        RosPublisherSystem::Make<std_msgs::msg::Float64>(
+            "/sim_rate", rclcpp::QoS(1), ros, params.publish_triggers,
+            params.publish_period));
+
+    builder.ConnectInput(
+        "graph_query",
+        sim_rate_publisher->get_input_port());
   }
 
   builder.BuildInto(this);
