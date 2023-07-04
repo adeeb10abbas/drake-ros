@@ -1,65 +1,58 @@
 # Dockerfile for drake-ros
 
 ARG ARCH
-FROM ${ARCH}ros:humble-ros-base-jammy
+FROM ${ARCH}/ros:humble
 
 # Set shell for running commands
 SHELL ["/bin/bash", "-c"]
 
-# Install ROS2 packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-humble-desktop=0.10.0-1* \
-    && rm -rf /var/lib/apt/lists/*
-
-# Update and upgrade the system
+# Update the system and install necessary dependencies 
 RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get install -y tzdata
+    apt-get install -y wget unzip curl software-properties-common lsb-release python3-pip && \
+    apt-get install qtbase5-dev qtchooser qt5-qmake qtbase5-dev-tools -y && \
+    apt-get install -y tzdata && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install necessary dependencies for the script
-RUN apt-get install -y wget unzip curl software-properties-common lsb-release python3-pip
+# Bazel Installer only needed for arm64 systems
+RUN install_bazel() { \
+    wget "https://github.com/bazelbuild/bazel/releases/download/6.2.0/bazel-6.2.0-linux-$1" && \
+    chmod 755 bazel-6.2.0-linux-$1 && \
+    mv bazel-6.2.0-linux-$1 /usr/bin/bazel; \
+}
 
-# Install Bazelisk using npm as it's straightforward this way
-RUN apt-get install -y npm
-RUN npm install -g @bazel/bazelisk
+# Install Bazel for arm64 systems since install_prereqs.sh doesn't for non x86_64 systems
+RUN if [ "$ARCH" = "arm64" ] ; then \
+        install_bazel "arm64" \
+    ; fi
+    
+# Argument to support building Drake from source (only strictly necessary for ARM64 users)
+ARG BUILD_DRAKE_FROM_SOURCE=false 
 
-# Run Bazelisk to install Bazel
-RUN bazelisk
-
-# Install some useful tools for development
-RUN apt-get update --fix-missing && \
-    apt-get install -y git \
-                       nano \
-                       vim \
-                       libeigen3-dev \
-                       tmux \
-		               zip
-
-RUN apt-get -y dist-upgrade
-
-ARG BUILD_DRAKE_FROM_SOURCE=false
-RUN if [ "$BUILD_DRAKE_FROM_SOURCE" = "true" ] ; then \
+# Install Drake from source or download pre-built binary accordingly
+RUN if [ "$BUILD_DRAKE_FROM_SOURCE" = "true" ]; then \
         # Install build dependencies for Drake \
+        apt-get update && \
         apt-get install -y build-essential cmake && \
-        # Clone Drake source code \
         git clone https://github.com/RobotLocomotion/drake.git && \
         yes | bash drake/setup/ubuntu/install_prereqs.sh && \
         mkdir drake-build && \
         cd drake-build && \
         # Build Drake from source \
-        cmake -DCMAKE_INSTALL_PREFIX=$HOME/drake ../drake && make -j$(nproc) \
-        ; \
-    else \
-        # Download and install Drake dependencies \
-        wget -q -O /tmp/drake-setup.zip https://github.com/RobotLocomotion/drake/archive/refs/heads/master.zip && \
-    	unzip -q /tmp/drake-setup.zip -d /tmp && \
-    	yes | bash /tmp/drake-master/setup/ubuntu/install_prereqs.sh && \
-    	rm -rf /tmp/drake-setup.zip /tmp/drake-master && \
-        # Download and install pre-built Drake binary for Ubuntu \
-        wget https://drake-packages.csail.mit.edu/drake/nightly/drake-latest-jammy.tar.gz && \
-        tar -xzf drake-latest-jammy.tar.gz --strip-components=1 -C /opt && \
-        rm drake-latest-jammy.tar.gz ; \
-    fi
+        cmake -DCMAKE_INSTALL_PREFIX=/opt/drake ../drake && make -j$(nproc) && \
+        make install \
+    ; else \
+        # Update and add necessary keys and sources for Drake installation
+        apt-get update && apt-get install --no-install-recommends \
+        ca-certificates gnupg lsb-release wget && \
+        wget -qO- https://drake-apt.csail.mit.edu/drake.asc | gpg --dearmor - \
+        | tee /etc/apt/trusted.gpg.d/drake.gpg >/dev/null && \
+        echo "deb [arch=amd64] https://drake-apt.csail.mit.edu/$(lsb_release -cs) $(lsb_release -cs) main" \
+        | tee /etc/apt/sources.list.d/drake.list >/dev/null && \
+        apt-get update && apt-get install -y --no-install-recommends drake-dev && \
+        # Add Drake to the path 
+        echo 'export PATH="/opt/drake/bin${PATH:+:${PATH}}"' >> /etc/bash.bashrc && \
+        echo 'export PYTHONPATH="/opt/drake/lib/python'$(python3 -c 'import sys; print("{0}.{1}".format(*sys.version_info))')'/site-packages${PYTHONPATH:+:${PYTHONPATH}}"' >> /etc/bash.bashrc \
+    ; fi
 
 # Clone Drake ROS repository
 RUN git clone https://github.com/RobotLocomotion/drake-ros.git
@@ -73,12 +66,7 @@ RUN source /opt/ros/humble/setup.bash && \
     cd drake_ros_ws/ && \
     apt-get update --fix-missing && \
     rosdep install -i --from-path src --rosdistro humble -y && \
-    if [ "$BUILD_DRAKE_FROM_SOURCE" = "true" ] ; then \
-        colcon build --symlink-install --cmake-args -DCMAKE_PREFIX_PATH=$HOME/drake \
-        ; \
-    else \
-        colcon build --symlink-install ; \
-    fi && \
+    colcon build --symlink-install && \
     colcon test --packages-up-to drake_ros_examples --event-handlers console_cohesion+ && \
     colcon test-result --verbose
 
