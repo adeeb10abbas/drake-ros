@@ -30,7 +30,7 @@ The docker container would allow you to both visualize in `rviz2` (on M1 Macs as
 
 1. Start a Docker container with the `drake-ros` image using `rocker`. The following command mounts the current working directory (the root of the `drake-ros` repository) inside the container at `/drake_ros_ws/src/`, enables NVIDIA GPU support, and sets up X11 forwarding:
 
-    $ rocker --nvidia --x11 --volume "$(pwd):/drake_ros_ws/src/" -- drake-ros
+    ```$ rocker --nvidia --x11 --volume "$(pwd):/drake_ros_ws/src/" -- drake-ros```
 
   If needed, replace `drake-ros` with the name of the Docker image you built earlier.
 Alternatively, you can also run an equivalent `docker run` command.  
