@@ -2,7 +2,10 @@
 import argparse
 
 import numpy as np
+import cv2
+import threading
 
+from time import sleep
 import drake_ros.core
 from drake_ros.core import ClockSystem
 from drake_ros.core import RosInterfaceSystem
@@ -14,7 +17,7 @@ from pydrake.systems.framework import DiagramBuilder
 from pydrake.systems.primitives import Adder
 from pydrake.systems.primitives import ConstantVectorSource
 from pydrake.systems.primitives import Sine
-
+import pydrake.systems.sensors
 
 def main():
     parser = argparse.ArgumentParser()
@@ -34,6 +37,7 @@ def main():
     manipulation_station = builder.AddSystem(ManipulationStation())
     manipulation_station.SetupClutterClearingStation()
     manipulation_station.Finalize()
+
 
     # Make the base joint swing sinusoidally.
     constant_term = builder.AddSystem(ConstantVectorSource(
@@ -74,6 +78,7 @@ def main():
     simulator.set_target_realtime_rate(1.0)
     simulator_context = simulator.get_mutable_context()
 
+    default_context = manipulation_station.CreateDefaultContext()
     manipulation_station_context = \
         diagram.GetMutableSubsystemContext(
             manipulation_station, simulator_context)
@@ -84,20 +89,52 @@ def main():
     # Fix gripper joints' position.
     manipulation_station.GetInputPort('wsg_position').FixValue(
         manipulation_station_context, np.zeros(1))
-
+    
     # Use default positions for every joint but the base joint.
     constants = constant_term.get_mutable_source_value(constant_term_context)
     constants.set_value(
         manipulation_station.GetIiwaPosition(manipulation_station_context))
     constants.get_mutable_value()[0] = -np.pi / 4.
 
+## Getting the camera output - 
+
+    def display_images():
+        cv2.namedWindow('Live Image', cv2.WINDOW_NORMAL)
+        
+        while True:
+            # Check if images are available
+            if manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context).size() > 0:
+                image = manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context)
+                image_data = image.data
+                # image_data.shape = (480, 848, 4)
+                # image_data.dtype = uint8
+                # Display the image
+
+                cv2.imshow('Live Image', image_data)
+                
+                # Use waitKey to introduce a delay. 1 means 1ms.
+                # It also allows OpenCV to process GUI events.
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    # If 'q' key is pressed, break from the loop
+                    break
+
+        # Destroy the OpenCV window when done
+        cv2.destroyAllWindows()
+
+    ## Image display Thread 
+    image_thread = threading.Thread(target=display_images)
+    image_thread.start()
+
+    ##
+    print("Starting simulation...")
     # Step the simulator in 0.1s intervals
     step = 0.1
-    while simulator_context.get_time() < args.simulation_sec:
-        next_time = min(
-            simulator_context.get_time() + step, args.simulation_sec,
-        )
-        simulator.AdvanceTo(next_time)
+    # while simulator_context.get_time() < args.simulation_sec:
+    #     next_time = min(
+    #         simulator_context.get_time() + step, args.simulation_sec,
+    #     )
+    #     simulator.AdvanceTo(next_time)
+    
 
 
 if __name__ == '__main__':
