@@ -98,44 +98,70 @@ def main():
 
 ## Getting the camera output - 
 
-    def display_images():
-        cv2.namedWindow('Live Image', cv2.WINDOW_NORMAL)
+    # cv2.namedWindow('Live Image', cv2.WINDOW_NORMAL)
+    
+    # # Check if images are available
+    # if manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context).size() > 0:
+    #     image = manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context)
+    #     image_data = image.data
+    #     # image_data.shape = (480, 848, 4)
+    #     # image_data.dtype = uint8
+    #     # Display the image
+
+    #     cv2.imshow('Live Image', image_data)
         
-        while True:
-            # Check if images are available
-            if manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context).size() > 0:
-                image = manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context)
-                image_data = image.data
-                # image_data.shape = (480, 848, 4)
-                # image_data.dtype = uint8
-                # Display the image
+    #     # Use waitKey to introduce a delay. 1 means 1ms.
+    #     # It also allows OpenCV to process GUI events.
+    #     cv2.waitKey(1)
 
-                cv2.imshow('Live Image', image_data)
-                
-                # Use waitKey to introduce a delay. 1 means 1ms.
-                # It also allows OpenCV to process GUI events.
-                if cv2.waitKey(1) & 0xFF == ord('q'):
-                    # If 'q' key is pressed, break from the loop
-                    break
 
-        # Destroy the OpenCV window when done
-        cv2.destroyAllWindows()
-
-    ## Image display Thread 
-    image_thread = threading.Thread(target=display_images)
-    image_thread.start()
-
-    ##
-    print("Starting simulation...")
-    # Step the simulator in 0.1s intervals
-    step = 0.1
+    # ##
+    # print("Starting simulation...")
+    # # Step the simulator in 0.1s intervals
+    # step = 0.1
     # while simulator_context.get_time() < args.simulation_sec:
     #     next_time = min(
     #         simulator_context.get_time() + step, args.simulation_sec,
     #     )
     #     simulator.AdvanceTo(next_time)
     
+    cv2.namedWindow('Live Image', cv2.WINDOW_NORMAL)
 
+    # Function to display camera image
+    def display_camera():
+        while True:
+            if manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context).size() > 0:
+                image = manipulation_station.GetOutputPort('camera_0_rgb_image').Eval(default_context)
+                image_data = image.data
+                print(image_data.shape)
+                print(image_data)
+                cv2.imshow('Live Image', image_data)
+                cv2.waitKey(1)
+
+    # Function to run the simulation loop
+    def simulation_loop():
+        print("Starting simulation...")
+        step = 0.1
+        while simulator_context.get_time() < args.simulation_sec:
+            next_time = min(
+                simulator_context.get_time() + step, args.simulation_sec,
+            )
+            simulator.AdvanceTo(next_time)
+
+    # Create threads
+    camera_thread = threading.Thread(target=display_camera)
+    simulation_thread = threading.Thread(target=simulation_loop)
+
+    # Start threads
+    camera_thread.start()
+    simulation_thread.start()
+
+    # Wait for both threads to finish
+    camera_thread.join()
+    simulation_thread.join()
+
+    # Cleanup
+    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
